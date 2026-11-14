@@ -25,9 +25,10 @@ from .const import (
     CONF_HYDRATION_UNIT,
 )
 from .validation import validate_payload, sanitize_payload
+from .normalize import expand
 
 MAX_HISTORY = 10
-RATE_LIMIT_REQUESTS = 60  # Max requests per window
+RATE_LIMIT_REQUESTS = 1200  # Max requests per window
 RATE_LIMIT_WINDOW = timedelta(minutes=1)  # Time window for rate limiting
 _LOGGER = logging.getLogger(__name__)
 
@@ -116,7 +117,9 @@ class AppleHealthManager:
                 _LOGGER.debug("Processing batch webhook items: count=%d", len(payload))
                 for item in payload:
                     if isinstance(item, dict):
-                        self._process_payload(item)
+                        exp = expand(item)
+                        for sub in (item,) if exp is None else exp:
+                            self._process_payload(sub)
             elif isinstance(payload, dict):
                 _LOGGER.debug(
                     "Processing single webhook metric=%s ts=%s value=%s",
@@ -124,7 +127,9 @@ class AppleHealthManager:
                     payload.get("timestamp"),
                     payload.get("value"),
                 )
-                self._process_payload(payload)
+                exp = expand(payload)
+                for sub in (payload,) if exp is None else exp:
+                    self._process_payload(sub)
             else:
                 _LOGGER.warning("Webhook payload ignored (not dict/list): %s", type(payload))
             return web.Response(
@@ -194,6 +199,11 @@ class AppleHealthManager:
             self.metrics[metric] = state
             async_dispatcher_send(self.hass, signal_new_metric(self.entry_id), metric)
         else:
+            try:
+                if ts < state.last_updated:
+                    return  # older (history) sample must not overwrite a newer value
+            except TypeError:
+                pass
             state.value = value
             state.unit = unit
             state.last_updated = ts
