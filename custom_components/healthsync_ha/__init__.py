@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.components import persistent_notification
 
 from .const import DOMAIN, PLATFORMS, CONF_WEBHOOK_ID, DEFAULT_OPTIONS_METRIC
 from .webhook import AppleHealthManager
@@ -29,14 +28,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register update listener for options changes
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 
-    # Surface the webhook ID so users can copy it easily.
-    persistent_notification.async_create(
-        hass,
-        f"HealthSync HA Webhook ID: `{entry.data[CONF_WEBHOOK_ID]}`\n\n"
-        "Use it with your Home Assistant base URL: `/api/webhook/<ID>`.",
-        title=entry.title or "HealthSync HA",
-        notification_id=f"{DOMAIN}_{entry.entry_id}_webhook",
-    )
     return True
 
 
